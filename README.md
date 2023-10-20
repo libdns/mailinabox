@@ -6,6 +6,7 @@
 This package implements the [libdns interfaces](https://github.com/libdns/libdns) for [Mail-In-A-Box](https://mailinabox.email/) custom DNS API,
 allowing you to manage DNS records.
 
+This provider only supports the one zone that the admin custom dns api is hosted on.
 
 ```go
 import (
