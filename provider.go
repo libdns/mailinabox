@@ -57,7 +57,7 @@ func (p *Provider) zoneCheck(zone string, client *miab.Client) error {
 	}
 	return nil
 }
-func toLibDnsRecords(zone string, miabRecords []miab.DNSRecord) []libdns.Record {
+func toLibDnsRecords(zone string, miabRecords []miab.DNSRecord) ([]libdns.Record, error) {
 	libDNSRecords := []libdns.Record{}
 	zone = removeTrailingDot(zone)
 	for _, mr := range miabRecords {
@@ -68,7 +68,7 @@ func toLibDnsRecords(zone string, miabRecords []miab.DNSRecord) []libdns.Record 
 		case miab.A, miab.AAAA:
 			addr, err := netip.ParseAddr(mr.Value)
 			if err != nil {
-				// TODO: log the error
+				return nil, fmt.Errorf("Error parsing IP address. Error: %s, input: %s, record: %s", err, mr.Value, mr.QualifiedName)
 			}
 			rr = &libdns.Address{Name: partialName, IP: addr}
 		case miab.CAA:
@@ -84,13 +84,9 @@ func toLibDnsRecords(zone string, miabRecords []miab.DNSRecord) []libdns.Record 
 		case miab.TXT:
 			rr = &libdns.TXT{Name: partialName, Text: mr.Value}
 		}
-		if rr == nil {
-			// panic or just log?
-			// fmt.Errorf()
-		}
 		libDNSRecords = append(libDNSRecords, rr)
 	}
-	return libDNSRecords
+	return libDNSRecords, nil
 }
 
 // GetRecords lists all the records in the zone.
@@ -103,7 +99,7 @@ func (p *Provider) GetRecords(ctx context.Context, zone string) ([]libdns.Record
 	if err != nil {
 		return nil, err
 	}
-	return toLibDnsRecords(zone, miabRecords), nil
+	return toLibDnsRecords(zone, miabRecords)
 }
 
 // AppendRecords adds records to the zone. It returns the records that were added.
