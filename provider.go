@@ -6,10 +6,10 @@ package mailinabox
 import (
 	"context"
 	"fmt"
+	"net/netip"
 	"strings"
 
 	"github.com/libdns/libdns"
-	"github.com/luv2code/gomiabdns"
 	miab "github.com/luv2code/gomiabdns"
 )
 
@@ -63,12 +63,32 @@ func toLibDnsRecords(zone string, miabRecords []miab.DNSRecord) []libdns.Record 
 	for _, mr := range miabRecords {
 		partialName := strings.ReplaceAll(mr.QualifiedName, zone, "")
 		partialName = removeTrailingDot(partialName)
-		libDNSRecords = append(libDNSRecords, libdns.Record{
-			ID:    mr.QualifiedName + ".",
-			Type:  string(mr.RecordType),
-			Name:  partialName,
-			Value: mr.Value,
-		})
+		var rr libdns.Record
+		switch mr.RecordType {
+		case miab.A, miab.AAAA:
+			addr, err := netip.ParseAddr(mr.Value)
+			if err != nil {
+				// TODO: log the error
+			}
+			rr = &libdns.Address{Name: partialName, IP: addr}
+		case miab.CAA:
+			rr = &libdns.CAA{Name: partialName, Value: mr.Value}
+		case miab.CNAME:
+			rr = &libdns.CNAME{Name: partialName, Target: mr.Value}
+		case miab.MX:
+			rr = &libdns.MX{Name: partialName, Target: mr.Value}
+		case miab.NS:
+			rr = &libdns.NS{Name: partialName, Target: mr.Value}
+		case miab.SRV:
+			rr = &libdns.SRV{Name: partialName, Target: mr.Value}
+		case miab.TXT:
+			rr = &libdns.TXT{Name: partialName, Text: mr.Value}
+		}
+		if rr == nil {
+			// panic or just log?
+			// fmt.Errorf()
+		}
+		libDNSRecords = append(libDNSRecords, rr)
 	}
 	return libDNSRecords
 }
@@ -94,7 +114,8 @@ func (p *Provider) AppendRecords(ctx context.Context, zone string, records []lib
 	}
 	zone = removeTrailingDot(zone)
 	for _, r := range records {
-		if err := client.AddHost(ctx, r.Name+"."+zone, gomiabdns.RecordType(r.Type), r.Value); err != nil {
+		rr := r.RR()
+		if err := client.AddHost(ctx, rr.Name+"."+zone, miab.RecordType(rr.Type), rr.Data); err != nil {
 			return nil, err
 		}
 	}
@@ -110,7 +131,8 @@ func (p *Provider) SetRecords(ctx context.Context, zone string, records []libdns
 	}
 	zone = removeTrailingDot(zone)
 	for _, r := range records {
-		if err := client.UpdateHost(ctx, r.Name+"."+zone, gomiabdns.RecordType(r.Type), r.Value); err != nil {
+		rr := r.RR()
+		if err := client.UpdateHost(ctx, rr.Name+"."+zone, miab.RecordType(rr.Type), rr.Data); err != nil {
 			return nil, err
 		}
 	}
@@ -125,7 +147,8 @@ func (p *Provider) DeleteRecords(ctx context.Context, zone string, records []lib
 	}
 	zone = removeTrailingDot(zone)
 	for _, r := range records {
-		if err := client.DeleteHost(ctx, r.Name+"."+zone, gomiabdns.RecordType(r.Type), r.Value); err != nil {
+		rr := r.RR()
+		if err := client.DeleteHost(ctx, rr.Name+"."+zone, miab.RecordType(rr.Type), rr.Data); err != nil {
 			return nil, err
 		}
 	}
