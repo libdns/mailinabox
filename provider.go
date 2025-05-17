@@ -44,14 +44,14 @@ func (p *Provider) zoneCheck(zone string, client *miab.Client) error {
 	zone = removeTrailingDot(zone)
 	ControlledZones, err := client.GetZones(context.TODO())
 	if err != nil {
-                return fmt.Errorf("This DNS provider (%s) gives an error (%s) when retrieving zones", p.APIURL, err.Error())
-        }
-	
+		return fmt.Errorf("This DNS provider (%s) gives an error (%s) when retrieving zones", p.APIURL, err.Error())
+	}
+
 	isOk := false
 	for _, dz := range ControlledZones {
 		isOk = isOk || strings.Contains(zone, string(dz))
 	}
-	
+
 	if !isOk {
 		return fmt.Errorf("This DNS provider (%s) does not control the specified zone (%s)", p.APIURL, zone)
 	}
